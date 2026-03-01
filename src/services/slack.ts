@@ -1,12 +1,5 @@
 import type { SlackChannel, Ticket } from '../types'
 
-const WEBHOOK_URLS: Record<SlackChannel, string> = {
-  'eng-bugs': import.meta.env.VITE_SLACK_ENG_BUGS || '',
-  'product-feedback': import.meta.env.VITE_SLACK_PRODUCT_FEEDBACK || '',
-  'cs-alerts': import.meta.env.VITE_SLACK_CS_ALERTS || '',
-  wins: import.meta.env.VITE_SLACK_WINS || '',
-}
-
 const PRIORITY_EMOJI: Record<string, string> = {
   P0: '🔴',
   P1: '🟠',
@@ -15,20 +8,10 @@ const PRIORITY_EMOJI: Record<string, string> = {
   P4: '⚪',
 }
 
-function getProxyPath(channel: SlackChannel): string {
-  const url = WEBHOOK_URLS[channel]
-  if (!url) throw new Error(`No Slack webhook configured for #${channel}. Set VITE_SLACK_${channel.toUpperCase().replace('-', '_')} in .env`)
-  // Convert full webhook URL to proxy path:
-  // https://hooks.slack.com/services/T.../B.../xxx -> /api/slack/services/T.../B.../xxx
-  const { pathname } = new URL(url)
-  return `/api/slack${pathname}`
-}
-
 export async function sendToSlack(ticket: Ticket): Promise<void> {
-  const proxyPath = getProxyPath(ticket.channel)
   const emoji = PRIORITY_EMOJI[ticket.priority] ?? '⚪'
 
-  const body = {
+  const message = {
     blocks: [
       {
         type: 'header',
@@ -65,15 +48,20 @@ export async function sendToSlack(ticket: Ticket): Promise<void> {
     ],
   }
 
-  const response = await fetch(proxyPath, {
+  const response = await fetch('/api/slack-proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ channel: ticket.channel, message }),
   })
 
-  // Slack returns plain text "ok" on success (status 200)
   const text = await response.text()
-  if (!response.ok || (text !== 'ok' && !text.includes('ok'))) {
-    throw new Error(`Slack responded: ${text || response.status}`)
+  if (!response.ok) {
+    throw new Error(`Slack proxy error (${response.status}): ${text}`)
+  }
+  if (text !== 'ok' && !text.includes('ok')) {
+    throw new Error(`Slack responded: ${text}`)
   }
 }
+
+// Re-export channel type so callers don't need a separate import
+export type { SlackChannel }
