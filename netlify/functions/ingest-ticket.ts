@@ -29,6 +29,30 @@ interface Ticket {
   source: 'zapier'
 }
 
+// ── Blobs store ───────────────────────────────────────────────────────────────
+//
+// @netlify/blobs v10 reads NETLIFY_BLOBS_CONTEXT automatically in deployed
+// functions. If that env var isn't present (e.g. on older deploys), it falls
+// back to explicit NETLIFY_SITE_ID + NETLIFY_TOKEN.
+//
+// Set these in Netlify → Site configuration → Environment variables if needed:
+//   NETLIFY_SITE_ID  — found in Site configuration → Site details
+//   NETLIFY_TOKEN    — a Netlify personal access token (user settings → OAuth)
+
+function getTicketStore() {
+  const siteID = process.env.NETLIFY_SITE_ID
+  const token = process.env.NETLIFY_TOKEN
+
+  if (siteID && token) {
+    console.log('[blobs] using explicit siteID + token config')
+    return getStore({ name: 'signal-tickets', siteID, token })
+  }
+
+  // Falls back to automatic NETLIFY_BLOBS_CONTEXT injection
+  console.log('[blobs] using automatic NETLIFY_BLOBS_CONTEXT')
+  return getStore('signal-tickets')
+}
+
 // ── Anthropic classification ──────────────────────────────────────────────────
 
 const SYSTEM_PROMPT =
@@ -65,7 +89,6 @@ async function classify(
   customerName: string,
   feedback: string
 ): Promise<Pick<Ticket, 'priority' | 'type' | 'channel' | 'summary'>> {
-  // Prefer ANTHROPIC_API_KEY (server-side convention); fall back to VITE_ prefix
   const apiKey = process.env.ANTHROPIC_API_KEY ?? process.env.VITE_ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set in environment variables')
 
@@ -89,10 +112,9 @@ async function classify(
     throw new Error(`Anthropic API error (${response.status}): ${err}`)
   }
 
-  const data = await response.json() as { content: Array<{ text: string }> }
+  const data = (await response.json()) as { content: Array<{ text: string }> }
   const text = data.content[0].text
 
-  // Strip markdown fences if present, then find the JSON object
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/)
   const raw = fenced ? fenced[1] : text
   const match = raw.match(/\{[\s\S]*\}/)
@@ -134,12 +156,11 @@ export const handler: Handler = async (event) => {
   let classification: Pick<Ticket, 'priority' | 'type' | 'channel' | 'summary'>
   try {
     classification = await classify(customerName, feedback)
+    console.log(`[ingest-ticket] Classified: ${JSON.stringify(classification)}`)
   } catch (e) {
-    console.error('[ingest-ticket] Classification failed:', e)
-    return {
-      statusCode: 502,
-      body: e instanceof Error ? e.message : 'Classification failed',
-    }
+    const msg = e instanceof Error ? e.message : 'Classification failed'
+    console.error('[ingest-ticket] Classification error:', msg)
+    return { statusCode: 502, body: msg }
   }
 
   // Build ticket
@@ -154,14 +175,19 @@ export const handler: Handler = async (event) => {
     source: 'zapier',
   }
 
-  // Persist to Netlify Blobs — keyed by ticket ID so each ticket is a separate blob
+  // Persist to Netlify Blobs
   try {
-    const store = getStore('signal-tickets')
+    const store = getTicketStore()
     await store.setJSON(ticket.id, ticket)
-    console.log(`[ingest-ticket] Saved ticket ${ticket.id} for ${customerName}`)
+    console.log(`[ingest-ticket] Saved ticket ${ticket.id} for "${customerName}"`)
   } catch (e) {
-    console.error('[ingest-ticket] Failed to save to Blobs:', e)
-    return { statusCode: 500, body: 'Failed to persist ticket' }
+    // Return the real error so it's visible in the HTTP response, not just logs
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error('[ingest-ticket] Blobs error:', msg)
+    return {
+      statusCode: 500,
+      body: `Failed to persist ticket: ${msg}`,
+    }
   }
 
   return {
