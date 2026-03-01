@@ -16,6 +16,7 @@ export type TicketStatus = 'pending' | 'in-progress' | 'resolved'
 export interface Ticket {
   id: string
   customerName: string
+  email?: string
   feedback: string
   priority: Priority
   type: FeedbackType
@@ -23,6 +24,7 @@ export interface Ticket {
   summary: string
   status: TicketStatus
   createdAt: string
+  source?: 'manual' | 'zapier'
 }
 
 export interface MonthlyReportData {

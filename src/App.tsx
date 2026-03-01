@@ -13,9 +13,27 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('board')
   const [showNewTicket, setShowNewTicket] = useState(false)
 
+  // Persist to localStorage whenever tickets change
   useEffect(() => {
     saveTickets(tickets)
   }, [tickets])
+
+  // On mount, fetch any tickets submitted via the ingest endpoint (e.g. from Zapier)
+  // and merge ones that aren't already in localStorage.
+  useEffect(() => {
+    fetch('/api/get-tickets')
+      .then((r) => (r.ok ? (r.json() as Promise<Ticket[]>) : []))
+      .then((remote) => {
+        setTickets((prev) => {
+          const existingIds = new Set(prev.map((t) => t.id))
+          const incoming = remote.filter((t) => !existingIds.has(t.id))
+          return incoming.length > 0 ? [...incoming, ...prev] : prev
+        })
+      })
+      .catch(() => {
+        // Silently ignore — function not available in local dev without netlify dev
+      })
+  }, [])
 
   const handleAdd = (ticket: Ticket) => {
     setTickets((prev) => [ticket, ...prev])

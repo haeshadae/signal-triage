@@ -8,3 +8,15 @@
   from = "/api/slack-proxy"
   to = "/.netlify/functions/slack-proxy"
   status = 200
+
+# Zapier ingest endpoint
+[[redirects]]
+  from = "/api/ingest-ticket"
+  to = "/.netlify/functions/ingest-ticket"
+  status = 200
+
+# Frontend polling endpoint
+[[redirects]]
+  from = "/api/get-tickets"
+  to = "/.netlify/functions/get-tickets"
+  status = 200
