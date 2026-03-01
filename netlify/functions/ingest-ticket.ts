@@ -40,17 +40,11 @@ interface Ticket {
 //   NETLIFY_TOKEN    — a Netlify personal access token (user settings → OAuth)
 
 function getTicketStore() {
-  const siteID = process.env.NETLIFY_SITE_ID
-  const token = process.env.NETLIFY_TOKEN
-
-  if (siteID && token) {
-    console.log('[blobs] using explicit siteID + token config')
-    return getStore({ name: 'signal-tickets', siteID, token })
-  }
-
-  // Falls back to automatic NETLIFY_BLOBS_CONTEXT injection
-  console.log('[blobs] using automatic NETLIFY_BLOBS_CONTEXT')
-  return getStore('signal-tickets')
+  return getStore({
+    name: 'tickets',
+    siteID: process.env.NETLIFY_SITE_ID,
+    token: process.env.NETLIFY_ACCESS_TOKEN,
+  })
 }
 
 // ── Anthropic classification ──────────────────────────────────────────────────

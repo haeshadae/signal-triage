@@ -1,16 +1,12 @@
 import type { Handler } from '@netlify/functions'
 import { getStore } from '@netlify/blobs'
 
-// See ingest-ticket.ts for NETLIFY_SITE_ID / NETLIFY_TOKEN fallback notes
 function getTicketStore() {
-  const siteID = process.env.NETLIFY_SITE_ID
-  const token = process.env.NETLIFY_TOKEN
-
-  if (siteID && token) {
-    return getStore({ name: 'signal-tickets', siteID, token })
-  }
-
-  return getStore('signal-tickets')
+  return getStore({
+    name: 'tickets',
+    siteID: process.env.NETLIFY_SITE_ID,
+    token: process.env.NETLIFY_ACCESS_TOKEN,
+  })
 }
 
 export const handler: Handler = async (event) => {
