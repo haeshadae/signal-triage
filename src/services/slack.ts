@@ -48,13 +48,19 @@ export async function sendToSlack(ticket: Ticket): Promise<void> {
     ],
   }
 
-  const response = await fetch('/api/slack-proxy', {
+  const proxyUrl = '/api/slack-proxy'
+  const requestBody = { channel: ticket.channel, message }
+  console.log('[slack] POST', proxyUrl, JSON.stringify(requestBody, null, 2))
+
+  const response = await fetch(proxyUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ channel: ticket.channel, message }),
+    body: JSON.stringify(requestBody),
   })
 
   const text = await response.text()
+  console.log('[slack] response', response.status, response.url, text)
+
   if (!response.ok) {
     throw new Error(`Slack proxy error (${response.status}): ${text}`)
   }
