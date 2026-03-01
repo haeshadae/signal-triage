@@ -1,14 +1,11 @@
 import type { Handler } from '@netlify/functions'
 
-// Webhook URLs are read server-side from env vars so they are never exposed
-// to the browser bundle. In Netlify's dashboard, set these as environment
-// variables — the VITE_ prefix works fine here since Netlify makes all env
-// vars available to functions via process.env regardless of prefix.
-const WEBHOOK_URLS: Record<string, string | undefined> = {
-  'eng-bugs': process.env.VITE_SLACK_ENG_BUGS,
-  'product-feedback': process.env.VITE_SLACK_PRODUCT_FEEDBACK,
-  'cs-alerts': process.env.VITE_SLACK_CS_ALERTS,
-  wins: process.env.VITE_SLACK_WINS,
+// Env var names keyed by channel
+const ENV_VAR: Record<string, string> = {
+  'eng-bugs': 'VITE_SLACK_ENG_BUGS',
+  'product-feedback': 'VITE_SLACK_PRODUCT_FEEDBACK',
+  'cs-alerts': 'VITE_SLACK_CS_ALERTS',
+  wins: 'VITE_SLACK_WINS',
 }
 
 export const handler: Handler = async (event) => {
@@ -29,18 +26,33 @@ export const handler: Handler = async (event) => {
     return { statusCode: 400, body: 'Request body must be JSON with { channel, message }' }
   }
 
-  const webhookUrl = WEBHOOK_URLS[channel]
+  // Read env var inside the handler so it is always resolved at runtime,
+  // not statically inlined as undefined by esbuild at bundle time.
+  const envVarName = ENV_VAR[channel]
+  if (!envVarName) {
+    console.error(`[slack-proxy] Unknown channel: ${channel}`)
+    return { statusCode: 400, body: `Unknown channel: ${channel}` }
+  }
+
+  const webhookUrl = process.env[envVarName]
+  console.log(`[slack-proxy] channel=${channel} envVar=${envVarName} webhookUrl=${webhookUrl}`)
+
   if (!webhookUrl) {
+    console.error(`[slack-proxy] ${envVarName} is not set in environment`)
+    return { statusCode: 500, body: `${envVarName} is not set` }
+  }
+
+  // Guard against the double-domain malformation:
+  // "https://hooks.slack.com/services/https://hooks.slack.com/services/..."
+  if (!webhookUrl.startsWith('https://hooks.slack.com/services/T')) {
+    console.error(`[slack-proxy] Malformed webhook URL: ${webhookUrl}`)
     return {
-      statusCode: 400,
-      body: `No Slack webhook configured for channel: ${channel}`,
+      statusCode: 500,
+      body: `${envVarName} is malformed. Expected https://hooks.slack.com/services/T.../B.../... but got: ${webhookUrl}`,
     }
   }
 
-  // Safety check: only forward to Slack
-  if (!webhookUrl.startsWith('https://hooks.slack.com/')) {
-    return { statusCode: 400, body: 'Invalid webhook URL' }
-  }
+  console.log(`[slack-proxy] POSTing to Slack webhook for #${channel}`)
 
   const slackResponse = await fetch(webhookUrl, {
     method: 'POST',
@@ -49,6 +61,8 @@ export const handler: Handler = async (event) => {
   })
 
   const text = await slackResponse.text()
+  console.log(`[slack-proxy] Slack responded: status=${slackResponse.status} body=${text}`)
+
   return {
     statusCode: slackResponse.status,
     body: text,
