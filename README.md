@@ -1,5 +1,5 @@
 # signal-triage
-# 🔔 Signal — AI-Powered Customer Feedback Triage
+# 🔔 Signal — AI-Powered Customer Feedback Triage System
 
 A full-stack triage system that automatically classifies incoming customer feedback by priority, routes alerts to the right Slack channels, and generates monthly executive reports — so nothing falls through the cracks.
 
