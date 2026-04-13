@@ -23,7 +23,7 @@ A full-stack triage system that automatically classifies incoming customer feedb
 
 ## 🧠 Why I Built This
 
-Chief of Staff roles at early-stage startups require automating yourself out of repetitive coordination work. Signal demonstrates exactly that: instead of manually reading every support email, deciding who needs to know, and sending individual Slack messages, this system handles the mechanical layer so I can focus on judgment calls — approving classifications, spotting patterns, and surfacing insights to leadership.
+Some roles require automating yourself out of repetitive coordination work. Signal demonstrates exactly that: instead of manually reading every support email, deciding who needs to know, and sending individual Slack messages, this system handles the mechanical layer so I can focus on judgment calls — approving classifications, spotting patterns, and surfacing insights to leadership.
 
 The monthly report feature turns raw feedback into a 2-minute executive briefing that would otherwise take hours to pull together.
 
